@@ -3,18 +3,21 @@ import os
 import math
 
 from pyteomics import mgf
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+
 import numpy as np
 import pylab
 
-plt.figure(figsize=(10.0, 3.0))
+# plt.figure(figsize=(10.0, 3.0))
 
-raw = plt.subplot(1, 2, 1)
+# raw = plt.subplot(1, 2, 1)
 #raw.ylabel('raw')
 # plt.ylabel('average')
 # plt.plot(data.mean(axis=0))
 
-norm = plt.subplot(1, 2, 2)
+#norm = plt.subplot(1, 2, 2)
 #norm.ylabel('normalised')
 #plt.plot(data.max(axis=0))
 
@@ -122,7 +125,7 @@ def writeBinMembers(fi, binfunc, binparams):
 
 def main():
     # uncomment to generate plots
-    # makePlots(sys.argv[1], sys.argv[2], 'pmass', precMassBinFunc, {'winsize': 200})
+    makePlots(sys.argv[1], sys.argv[2], 'pmass', precMassBinFunc, {'winsize': 200})
     # makePlots(sys.argv[1], sys.argv[2], 'pcharge', precChargeBinFunc, None)
     # makePlots(sys.argv[1], sys.argv[2], 'pintensity', precIntensityBinFunc, None)
     # makePlots(sys.argv[1], sys.argv[2], 'maxms2intensity', maxMS2IntensityBinFunc, None)
