@@ -2,24 +2,14 @@ import sys
 import os
 import math
 
-from pyteomics import mgf
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-
 import numpy as np
-import pylab
-
-# plt.figure(figsize=(10.0, 3.0))
-
-# raw = plt.subplot(1, 2, 1)
-#raw.ylabel('raw')
-# plt.ylabel('average')
-# plt.plot(data.mean(axis=0))
-
-#norm = plt.subplot(1, 2, 2)
-#norm.ylabel('normalised')
-#plt.plot(data.max(axis=0))
+import matplotlib
+try:
+    fig = matplotlib.pyplot.figure(figsize=(10.0, 3.0))
+except:
+    matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+from pyteomics import mgf
 
 def precMassBinFunc(spectrum, params={'winsize': 200}):
     return int(spectrum['params']['pepmass'][0] // params['winsize'])
@@ -50,7 +40,6 @@ def binSpectra(fi, binfunc, binparams):
         bins[bin_].insert(1, [])
     return bins
 
-
 def getBinMembers(fi, binfunc, binparams):
     bins = {}
     with mgf.read(fi) as reader:
@@ -61,10 +50,15 @@ def getBinMembers(fi, binfunc, binparams):
                 # raw_intensities, raw_masses, norm_masses
                 bins[bin_] = []
             bins[bin_].append(spectrum['params']['scans'])
-
     return bins
 
-
+def makePlot(figure, where, title, x, y):
+    pl = figure.add_subplot(where)
+    pl.set_title(title, fontsize=12)
+    pl.set_xlabel('m/z[D]', fontsize=10)
+    pl.set_ylabel('Intensity', fontsize=10)
+    pl.scatter(x, y, s=1)
+    return pl
 
 def makePlots(fi1, fi2, figfn, binfunc, binparams):
     #bins1, bins2 = map(lambda x:binSpectra(x, binfunc, binparams), [fi1, fi2])
@@ -94,23 +88,16 @@ def makePlots(fi1, fi2, figfn, binfunc, binparams):
             figname = '%s_E%02i.png' % (figfn, bin_)
 
         fig = plt.figure(figsize=(10.0, 3.0))
-        plot1, plot2 = fig.add_subplot(1, 2, 1), fig.add_subplot(1, 2, 2)
-        plot1.set_title(title1)
-        plot2.set_title(title2)
+        plot1, plot2 = makePlot(fig, 121, title1, bins1[bin_][2], bins1[bin_][0]), makePlot(fig, 122, title2, bins2[bin_][2], bins2[bin_][0])
 
-        plot1.scatter(bins1[bin_][2], bins1[bin_][0], s=1)
-        plot2.scatter(bins2[bin_][2], bins2[bin_][0], s=1)
+        ax1, ax2 = plot1.axis(), plot2.axis()
+        sharedAxis = min(ax1[0], ax2[0]), max(ax1[1], ax2[1]), min(ax1[2], ax2[2]), max(ax1[3], ax2[3])
+        plot1.axis(sharedAxis)
+        plot2.axis(sharedAxis)
 
-        #plot1.plot(bins1[bin_][2], bins1[bin_][0])
-        #plot2.plot(bins2[bin_][2], bins2[bin_][0])
-        # CAREFUL: barplots are memory hogs and crash!!!
-        #plot1.bar(bins1[bin_][2], bins1[bin_][0], width=0.1, linewidth=2, edgecolor='black')
-        #plot2.bar(bins2[bin_][2], bins2[bin_][0], width=0.1, linewidth=2, edgecolor='black')
         fig.tight_layout()
         fig.savefig(figname, dpi=300)
     pass
-
-
 
 def writeBinMembers(fi, binfunc, binparams):
     members = getBinMembers(fi, binfunc, binparams)
@@ -119,9 +106,6 @@ def writeBinMembers(fi, binfunc, binparams):
             fo.write('BIN %s\n' % bin_)
             for member in members[bin_]:
                 fo.write('%s\n' % member)
-
-
-
 
 def main():
     # uncomment to generate plots
