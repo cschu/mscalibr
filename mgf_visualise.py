@@ -57,7 +57,7 @@ def makePlot(figure, where, title, x, y):
     pl.set_title(title, fontsize=12)
     pl.set_xlabel('m/z[D]', fontsize=10)
     pl.set_ylabel('Intensity', fontsize=10)
-    pl.scatter(x, y, s=1)
+    pl.scatter(x, y, s=1, c='b', marker='.')
     return pl
 
 def getPlotLabels(fn, ptype, bin_, binparams):
@@ -78,9 +78,12 @@ def getPlotLabels(fn, ptype, bin_, binparams):
         figname = '%s_E%02i.png' % (ptype, bin_)
     return title, figname
 
-def adjustAxes(plot1, plot2):
+def adjustAxes(plot1, plot2, axes=None):
     ax1, ax2 = plot1.axis(), plot2.axis()
-    sharedAxis = min(ax1[0], ax2[0]), max(ax1[1], ax2[1]), min(ax1[2], ax2[2]), max(ax1[3], ax2[3])
+    if axes is None:
+	    sharedAxis = min(ax1[0], ax2[0]), max(ax1[1], ax2[1]), min(ax1[2], ax2[2]), max(ax1[3], ax2[3])
+    else:
+	    sharedAxis = axes
     plot1.axis(sharedAxis)
     plot2.axis(sharedAxis)
     pass
@@ -97,7 +100,7 @@ def makePlots(fi1, fi2, ptype, binfunc, binparams):
 
         fig = plt.figure(figsize=(10.0, 3.0))
         plot1, plot2 = makePlot(fig, 121, title1, bins1[bin_][2], bins1[bin_][0]), makePlot(fig, 122, title2, bins2[bin_][2], bins2[bin_][0])
-        adjustAxes(plot1, plot2)
+        adjustAxes(plot1, plot2, axes=(min(min(bins1[bin_][2]), min(bins2[bin_][2])), max(max(bins1[bin_][2]), max(bins2[bin_][2])), min(min(bins1[bin_][0]), min(bins2[bin_][0])), max(max(bins1[bin_][0]), max(bins2[bin_][0]))))
 
         fig.tight_layout()
         fig.savefig(figname, dpi=300)
@@ -114,7 +117,7 @@ def writeBinMembers(fi, binfunc, binparams):
 
 def main():
     # uncomment to generate plot0})
-    # makePlots(sys.argv[1], sys.argv[2], 'pcharge', precChargeBinFunc, None)
+    makePlots(sys.argv[1], sys.argv[2], 'pcharge', precChargeBinFunc, None)
     # makePlots(sys.argv[1], sys.argv[2], 'pintensity', precIntensityBinFunc, None)
     # makePlots(sys.argv[1], sys.argv[2], 'maxms2intensity', maxMS2IntensityBinFunc, None)
 
