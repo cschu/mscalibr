@@ -124,8 +124,7 @@ def writeBinMembers(fi, binfunc, binparams):
 
 
 def main():
-    # uncomment to generate plots
-    makePlots(sys.argv[1], sys.argv[2], 'pmass', precMassBinFunc, {'winsize': 200})
+    # uncomment to generate plot0})
     # makePlots(sys.argv[1], sys.argv[2], 'pcharge', precChargeBinFunc, None)
     # makePlots(sys.argv[1], sys.argv[2], 'pintensity', precIntensityBinFunc, None)
     # makePlots(sys.argv[1], sys.argv[2], 'maxms2intensity', maxMS2IntensityBinFunc, None)
