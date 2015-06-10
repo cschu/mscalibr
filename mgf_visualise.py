@@ -9,6 +9,7 @@ try:
 except:
     matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+# from scipy.stats import norm
 from pyteomics import mgf
 
 # functions to determine "bins" for plot-generation
@@ -39,8 +40,6 @@ def maxMS2IntensityAndPrecMassBinFunc(spectrum, params={'winsize': 200}):
 def maxMS2IntensityAndChargeBinFunc(spectrum, params={}):
     # binning by max MS2 intensity and precursor charge (is that spectrum charge or precursor charge?)
     return maxMS2IntensityBinFunc(spectrum), precChargeBinFunc(spectrum)
-
-
 
 def binSpectra(fi, binfunc, binparams):
     # this function reads an mgf file
@@ -127,6 +126,43 @@ def adjustAxes(plot1, plot2, axes=None):
     plot2.axis(axes)
     pass
 
+
+def getMassHistogram(fi, binsize=50):
+    masses = []
+    with mgf.read(fi) as reader:
+        for spectrum in reader:
+            pmass = spectrum['params']['pepmass'][0]
+            masses.extend(spectrum['m/z array'] - pmass)
+    # the histogram of the data with histtype='step'
+    fig = plt.figure()
+    plot = fig.add_subplot(111)
+
+    n, bins, patches = plot.hist(masses, binsize, normed=1, histtype='stepfilled')
+    plt.setp(patches, 'facecolor', 'b', 'alpha', 0.75)
+
+    # add a line showing the expected distribution
+    y = matplotlib.mlab.normpdf(bins, np.mean(masses), np.std(masses))
+    l = plot.plot(bins, y, 'r--', linewidth=1.5)
+    fig.tight_layout()
+    fig.savefig(os.path.basename(fi) + '.massHist1.png', dpi=300)
+    fig.savefig(os.path.basename(fi) + '.massHist1.svg', dpi=300)
+    plt.close(fig)
+
+    fig = plt.figure()
+    plot = fig.add_subplot(111)
+
+    n, bins, patches = plot.hist(masses, binsize, normed=1, histtype='bar')
+
+    # add a line showing the expected distribution
+    y = matplotlib.mlab.normpdf(bins, np.mean(masses), np.std(masses))
+    l = plot.plot(bins, y, 'r--', linewidth=1.5)
+    fig.tight_layout()
+    fig.savefig(os.path.basename(fi) + '.massHist2.png', dpi=300)
+    fig.savefig(os.path.basename(fi) + '.massHist2.svg', dpi=300)
+    plt.close(fig)
+
+    pass
+
 def makePlots(fi1, fi2, ptype, binfunc, binparams):
     #bins1, bins2 = map(lambda x:binSpectra(x, binfunc, binparams), [fi1, fi2])
     bins1 = binSpectra(fi1, binfunc, binparams)
@@ -184,8 +220,11 @@ def main():
     # makePlots(sys.argv[1], sys.argv[2], 'maxms2intensity', maxMS2IntensityBinFunc, None)
     # makePlots(sys.argv[1], sys.argv[2], 'pintensity+mass', precIntensityAndMassBinFunc, binparams={'winsize': 200})
     # makePlots(sys.argv[1], sys.argv[2], 'pintensity+charge', precIntensityAndChargeBinFunc, None)
-    makePlots(sys.argv[1], sys.argv[2], 'maxms2intensity+pmass', maxMS2IntensityAndPrecMassBinFunc, binparams={'winsize': 200})
-    makePlots(sys.argv[1], sys.argv[2], 'maxms2intensity+pcharge', maxMS2IntensityAndChargeBinFunc, None)
+    # makePlots(sys.argv[1], sys.argv[2], 'maxms2intensity+pmass', maxMS2IntensityAndPrecMassBinFunc, binparams={'winsize': 200})
+    # makePlots(sys.argv[1], sys.argv[2], 'maxms2intensity+pcharge', maxMS2IntensityAndChargeBinFunc, None)
+
+    getMassHistogram(sys.argv[1], binsize=50)
+    getMassHistogram(sys.argv[2], binsize=50)
 
 
     # uncomment to extract bin members
