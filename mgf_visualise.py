@@ -28,11 +28,18 @@ def maxMS2IntensityBinFunc(spectrum, params={}):
     maxIntensity = max(spectrum['intensity array'])
     return int(math.log(maxIntensity, 10)) if maxIntensity > 0 else -1
 def precIntensityAndMassBinFunc(spectrum, params={'winsize': 200}):
-    # binning by precursor (mass, intensity)
+    # binning by precursor (intensity, mass)
     return precIntensityBinFunc(spectrum), precMassBinFunc(spectrum, params=params)
 def precIntensityAndChargeBinFunc(spectrum, params={}):
-    # binning by precursor (mass, intensity)
+    # binning by precursor (intensity, mass)
     return precIntensityBinFunc(spectrum), precChargeBinFunc(spectrum)
+def maxMS2IntensityAndPrecMassBinFunc(spectrum, params={'winsize': 200}):
+    # binning by max MS2 intensity and precursor mass
+    return maxMS2IntensityBinFunc(spectrum), precMassBinFunc(spectrum, params=params)
+def maxMS2IntensityAndChargeBinFunc(spectrum, params={}):
+    # binning by max MS2 intensity and precursor charge (is that spectrum charge or precursor charge?)
+    return maxMS2IntensityBinFunc(spectrum), precChargeBinFunc(spectrum)
+
 
 
 def binSpectra(fi, binfunc, binparams):
@@ -73,26 +80,44 @@ def getPlotLabels(fn, ptype, bin_, binparams):
         winsize = binparams['winsize']
         interval = (winsize * bin_, winsize * (bin_ + 1))
         title = '%s\n%i-%iDa' % ((name,) + interval)
-        figname = '%s_%i-%i.png' % ((ptype,) + interval)
+        figname = '%s_%i-%i' % ((ptype,) + interval)
     elif ptype == "pcharge":
         title = '%s\ncharge=%i+' % (name, bin_)
-        figname = '%s_%i+.png' % (ptype, bin_)
+        figname = '%s_%i+' % (ptype, bin_)
     elif ptype == "pintensity":
         title = '%s\nprecIntensity=%s' % (name, bin_)
-        figname = '%s_%s.png' % (ptype, bin_)
+        figname = '%s_%s' % (ptype, bin_)
     elif ptype == "maxms2intensity":
         title = '%s\nmaxMS2Intensity=%s' % (name, bin_)
-        figname = '%s_%s.png' % (ptype, bin_)
+        figname = '%s_%s' % (ptype, bin_)
     elif ptype == "pintensity+mass":
         winsize = binparams['winsize']
-        # careful: bin_ is a tuple here
-        interval = (winsize * bin_[1], winsize * (bin_[1] + 1))
+        interval = (winsize * bin_[1], winsize * (bin_[1] + 1)) # careful: bin_ is a tuple here
         title = '%s\nprecIntensity=%s,precMass=%i-%iDa' % ((name, bin_[0]) + interval)
-        figname = '%s_%s+%i-%i.png' % ((ptype, bin_[0]) + interval)
+        figname = '%s_%s+%i-%i' % ((ptype, bin_[0]) + interval)
     elif ptype == "pintensity+charge":
         title = '%s\nprecIntensity=%s,charge=%i+' % ((name,) + bin_)
-        figname = '%s_%s+%i+.png' % ((ptype,) + bin_)
+        figname = '%s_%s+%i+' % ((ptype,) + bin_)
+    elif ptype == "maxms2intensity+pmass":
+        winsize = binparams['winsize']
+        interval = (winsize * bin_[1], winsize * (bin_[1] + 1))
+        title = '%s\nmaxMS2Intensity=%s,precMass=%i-%iDa' % ((name, bin_[0]) + interval)
+        figname = '%s_%s+%i-%i' % ((ptype, bin_[0]) + interval)
+    elif ptype == "maxms2intensity+pcharge":
+        title = '%s\nmaxMS2Intensity=%s,charge=%i+' % ((name,) + bin_)
+        figname = '%s_%s+%i+' % ((ptype,) + bin_)
     return title, figname
+
+"""
+def maxMS2IntensityAndPrecMassBinFunc(spectrum, params={'winsize': 200}):
+    # binning by max MS2 intensity and precursor mass
+    return maxMS2IntensityBinFunc(spectrum), precMassBinFunc(spectrum, params=params)
+def maxMS2IntensityAndChargeBinFunc(spectrum, params={}):
+    # binning by max MS2 intensity and precursor charge (is that spectrum charge or precursor charge?)
+    return maxMS2IntensityBinFunc(spectrum), precChargeBinFunc(spectrum)
+"""
+
+
 
 def adjustAxes(plot1, plot2, axes=None):
     ax1, ax2 = plot1.axis(), plot2.axis()
@@ -113,15 +138,23 @@ def makePlots(fi1, fi2, ptype, binfunc, binparams):
         title2, figname = getPlotLabels(fi2, ptype, bin_, binparams)
 
         fig = plt.figure(figsize=(10.0, 3.0))
-        plot1, plot2 = makePlot(fig, 121, title1, bins1[bin_][2], bins1[bin_][0]), makePlot(fig, 122, title2, bins2[bin_][2], bins2[bin_][0])
-
+        plot1 = makePlot(fig, 121, title1, bins1[bin_][2], bins1[bin_][0])
+        plot2 = makePlot(fig, 122, title2, bins2[bin_][2], bins2[bin_][0])
         xValues = bins1[bin_][2] + bins2[bin_][2]
         yValues = bins1[bin_][0] + bins2[bin_][0]
         adjustAxes(plot1, plot2, axes=(min(xValues), max(xValues), min(yValues), max(yValues)))
 
+        # 0,0 lower-left, 1,1 upper-right
+        plot1.text(0.95, 0.95, 'N=%i' % len(bins1[bin_][2]), verticalalignment='top', horizontalalignment='right',
+                   style='italic', transform=plot1.transAxes, color='black', fontsize=10)
+        plot2.text(0.95, 0.95, 'N=%i' % len(bins2[bin_][2]), verticalalignment='top', horizontalalignment='right',
+                   style='italic', transform=plot2.transAxes, color='black', fontsize=10)
+
         fig.tight_layout()
-        fig.savefig(figname, dpi=300)
+        fig.savefig(figname + '.png', dpi=300)
+        fig.savefig(figname + '.svg', dpi=300)
         plt.close(fig)
+
     pass
 
 def getBinMembers(fi, binfunc, binparams):
@@ -150,7 +183,11 @@ def main():
     # makePlots(sys.argv[1], sys.argv[2], 'pintensity', precIntensityBinFunc, None)
     # makePlots(sys.argv[1], sys.argv[2], 'maxms2intensity', maxMS2IntensityBinFunc, None)
     # makePlots(sys.argv[1], sys.argv[2], 'pintensity+mass', precIntensityAndMassBinFunc, binparams={'winsize': 200})
-    makePlots(sys.argv[1], sys.argv[2], 'pintensity+charge', precIntensityAndChargeBinFunc, None)
+    # makePlots(sys.argv[1], sys.argv[2], 'pintensity+charge', precIntensityAndChargeBinFunc, None)
+    makePlots(sys.argv[1], sys.argv[2], 'maxms2intensity+pmass', maxMS2IntensityAndPrecMassBinFunc, binparams={'winsize': 200})
+    makePlots(sys.argv[1], sys.argv[2], 'maxms2intensity+pcharge', maxMS2IntensityAndChargeBinFunc, None)
+
+
     # uncomment to extract bin members
     # writeBinMembers(sys.argv[1], maxMS2IntensityBinFunc, None)
     # writeBinMembers(sys.argv[2], maxMS2IntensityBinFunc, None)
