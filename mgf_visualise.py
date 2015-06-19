@@ -2,6 +2,7 @@ import sys
 import os
 import math
 import itertools as it
+from collections import Counter
 
 import numpy as np
 import matplotlib
@@ -43,13 +44,97 @@ def maxMS2IntensityAndChargeBinFunc(spectrum, params={}):
     # binning by max MS2 intensity and precursor charge (is that spectrum charge or precursor charge?)
     return maxMS2IntensityBinFunc(spectrum), precChargeBinFunc(spectrum)
 
-def plotHeatmap(fi):
+
+
+def plotHeatmap(fi, nSpectra=4000, fragBinsize=10, precursorBinsize=5):
+    binf = maxMS2IntensityBinFunc
+
+    with mgf.read(fi) as reader:
+        spectra = sorted([(spectrum['params']['pepmass'][0], spectrum['params']['title'], binf(spectrum)) for spectrum in reader],
+                         key=lambda x:(x[2], x[0]))
+        spectra = [spectrum for spectrum in spectra if spectrum[2] == 2][:nSpectra]
+
+    for spectrum in spectra:
+        print spectrum
+
+    usedSpectra = dict([(spectrum[1], i) for i, spectrum in enumerate(spectra)])
+
+    grid_d = {}
+    with mgf.read(fi) as reader:
+        for spectrum in reader:
+            if spectrum['params']['title'] in usedSpectra:
+                binPrecursor = usedSpectra[spectrum['params']['title']] // precursorBinsize
+
+                for fragMass, fragIntensity in it.izip(spectrum['m/z array'], spectrum['intensity array']):
+                    binFrag = int(fragMass // fragBinsize)
+
+                    # key = (binFrag, binPrecursor)
+                    key = (binPrecursor, binFrag)
+
+                    if key not in grid_d:
+                        grid_d[key] = []
+                    grid_d[key].append(fragIntensity)
+
+    def mean(L):
+        return sum(L) / len(L)
+    nrows, ncols = 2000 // precursorBinsize, 2000 // fragBinsize
+
+    for key in sorted(grid_d):
+        print key, grid_d[key]
+
+
+    grid = []
+    for x in xrange(ncols):
+        for y in xrange(nrows):
+            if (x, y) in grid_d:
+                grid.append(mean(grid_d[(x,y)]))
+                del grid_d[(x,y)]
+            else:
+                grid.append(0.0)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.pcolormesh(np.array(grid).reshape((nrows, ncols)), cmap=matplotlib.cm.seismic, vmin=min(grid), vmax=max(grid))
+    """
+    grid = []
+    for y in xrange(nrows):
+        row = []
+        for x in xrange(ncols):
+            if (x, y) in grid_d:
+                row.append(mean(grid_d[(x,y)]))
+                del grid_d[(x,y)]
+            else:
+                row.append(0.0)
+        grid.append(row)
+
+    grid = grid[::-1]
+    grid = [item for sublist in grid for item in sublist]
+
+    grid = np.array(grid).reshape((nrows, ncols))
+    plt.imshow(grid,
+               extent=(0, ncols, 0, nrows),
+               interpolation='nearest',
+               cmap=matplotlib.cm.seismic)
+    """
+
+    plt.tight_layout()
+    plt.savefig(os.path.basename(fi) + '.colormap.png', dpi=300)
+    plt.savefig(os.path.basename(fi) + '.colormap.svg', dpi=300)
+    plt.close()
+
+    pass
+
+def plotHeatmapOld(fi, limit=1000):
     # X, Y, Z = [], [], []
     grid_d = {}
     xmin, xmax, ymin, ymax = None, None, None, None
+    processedSpectra = 0
     with mgf.read(fi) as reader:
         for spectrum in reader:
-            x = int(spectrum['params']['pepmass'][0] + 0.5)
+            if processedSpectra > limit:
+                break
+            processedSpectra += 1
+            x = int(spectrum['params']['pepmass'][0] * 100000)
             xmin, xmax = (min(x, xmin), max(x, xmax)) if xmin is not None else (x, x)
             for y, z in it.izip(spectrum['m/z array'], spectrum['intensity array']):
                 y = int(y + 0.5)
@@ -75,7 +160,7 @@ def plotHeatmap(fi):
     grid = grid2
 
     #fig = plt.figure()
-    #plot = fig.add_subplot(111)
+                                                    #plot = fig.add_subplot(111)
 
     plt.imshow(grid,
                extent=(xmin, xmax, ymin, ymax),
@@ -89,8 +174,6 @@ def plotHeatmap(fi):
 
     #Z = matplotlib.cm.rainbow(map(lambda x:x/range_[1], Z))
     #plot.scatter(X, Y, color=Z) # pcolormesh(X, Y, Z)
-
-
 
     plt.tight_layout()
     plt.savefig(os.path.basename(fi) + '.colormap.png', dpi=300)
@@ -115,16 +198,18 @@ def binSpectra(fi, binfunc, binparams):
             bin_ = binfunc(spectrum, binparams)
             if bin_ not in bins:
                 # raw_intensities, raw_masses, norm_masses
-                bins[bin_] = [[], [], []]
+                bins[bin_] = [[], 0, []]
             bins[bin_][0].extend(spectrum['intensity array'])
             # to save space we only store the normalised masses
             # bins[bin_][1].extend(spectrum['m/z array'])
+            bins[bin_][1] += 1
             bins[bin_][2].extend(spectrum['m/z array'] - pmass)
 
     # sort the peaks in each bin by mass, then intensity
     for bin_ in bins:
+        nSpectra = bins[bin_][1]
         bins[bin_] = list(reversed(map(list, zip(*sorted(zip(bins[bin_][2], bins[bin_][0]))))))
-        bins[bin_].insert(1, [])
+        bins[bin_].insert(1, nSpectra)
     return bins
 
 def makePlot(figure, where, title, x, y):
@@ -169,17 +254,6 @@ def getPlotLabels(fn, ptype, bin_, binparams):
         figname = '%s_%s+%i+' % ((ptype,) + bin_)
     return title, figname
 
-"""
-def maxMS2IntensityAndPrecMassBinFunc(spectrum, params={'winsize': 200}):
-    # binning by max MS2 intensity and precursor mass
-    return maxMS2IntensityBinFunc(spectrum), precMassBinFunc(spectrum, params=params)
-def maxMS2IntensityAndChargeBinFunc(spectrum, params={}):
-    # binning by max MS2 intensity and precursor charge (is that spectrum charge or precursor charge?)
-    return maxMS2IntensityBinFunc(spectrum), precChargeBinFunc(spectrum)
-"""
-
-
-
 def adjustAxes(plot1, plot2, axes=None):
     ax1, ax2 = plot1.axis(), plot2.axis()
     if axes is None:
@@ -187,7 +261,6 @@ def adjustAxes(plot1, plot2, axes=None):
     plot1.axis(axes)
     plot2.axis(axes)
     pass
-
 
 def getMassHistogram(fi, binsize=50):
     masses = []
@@ -243,10 +316,10 @@ def makePlots(fi1, fi2, ptype, binfunc, binparams):
         adjustAxes(plot1, plot2, axes=(min(xValues), max(xValues), min(yValues), max(yValues)))
 
         # 0,0 lower-left, 1,1 upper-right
-        plot1.text(0.95, 0.95, 'N=%i' % len(bins1[bin_][2]), verticalalignment='top', horizontalalignment='right',
-                   style='italic', transform=plot1.transAxes, color='black', fontsize=10)
-        plot2.text(0.95, 0.95, 'N=%i' % len(bins2[bin_][2]), verticalalignment='top', horizontalalignment='right',
-                   style='italic', transform=plot2.transAxes, color='black', fontsize=10)
+        plot1.text(0.95, 0.95, 'fragments=%i\nprecursors=%i' % (len(bins1[bin_][2]), bins1[bin_][1]), verticalalignment='top', horizontalalignment='right',
+                   style='italic', transform=plot1.transAxes, color='black', fontsize=8)
+        plot2.text(0.95, 0.95, 'fragments=%i\nprecursors=%i' % (len(bins2[bin_][2]), bins2[bin_][1]), verticalalignment='top', horizontalalignment='right',
+                   style='italic', transform=plot2.transAxes, color='black', fontsize=8)
 
         fig.tight_layout()
         fig.savefig(figname + '.png', dpi=300)
@@ -287,7 +360,7 @@ def main():
 
     #getMassHistogram(sys.argv[1], binsize=50)
     #getMassHistogram(sys.argv[2], binsize=50)
-    plotHeatmap(sys.argv[1])
+    # plotHeatmap(sys.argv[1])
     plotHeatmap(sys.argv[2])
 
     # uncomment to extract bin members
