@@ -1,6 +1,7 @@
 import sys
 import os
 import math
+import itertools as it
 
 import numpy as np
 import matplotlib
@@ -11,6 +12,7 @@ except:
 import matplotlib.pyplot as plt
 # from scipy.stats import norm
 from pyteomics import mgf
+
 
 # functions to determine "bins" for plot-generation
 def precMassBinFunc(spectrum, params={'winsize': 200}):
@@ -40,6 +42,66 @@ def maxMS2IntensityAndPrecMassBinFunc(spectrum, params={'winsize': 200}):
 def maxMS2IntensityAndChargeBinFunc(spectrum, params={}):
     # binning by max MS2 intensity and precursor charge (is that spectrum charge or precursor charge?)
     return maxMS2IntensityBinFunc(spectrum), precChargeBinFunc(spectrum)
+
+def plotHeatmap(fi):
+    # X, Y, Z = [], [], []
+    grid_d = {}
+    xmin, xmax, ymin, ymax = None, None, None, None
+    with mgf.read(fi) as reader:
+        for spectrum in reader:
+            x = int(spectrum['params']['pepmass'][0] + 0.5)
+            xmin, xmax = (min(x, xmin), max(x, xmax)) if xmin is not None else (x, x)
+            for y, z in it.izip(spectrum['m/z array'], spectrum['intensity array']):
+                y = int(y + 0.5)
+                ymin, ymax = (min(y, ymin), max(y, ymax)) if ymin is not None else (y, y)
+                grid_d[(x,y)] = z
+
+            # X.extend([spectrum['params']['pepmass'][0] for i in spectrum['intensity array']])
+            # Y.extend(spectrum['m/z array'])
+            # Z.append(spectrum['intensity array'])
+            # Z.extend(spectrum['intensity array'])
+
+    grid = []
+    for x in xrange(xmin, xmax + 1):
+        for y in xrange(ymin, ymax + 1):
+            if (x, y) in grid_d:
+                grid.append(grid_d[(x,y)])
+                del grid_d[(x,y)]
+            else:
+                grid.append(0.0)
+
+    nrows, ncols = xmax - xmin + 1, ymax - ymin + 1
+    grid2 = np.array(grid).reshape((nrows, ncols))
+    grid = grid2
+
+    #fig = plt.figure()
+    #plot = fig.add_subplot(111)
+
+    plt.imshow(grid,
+               extent=(xmin, xmax, ymin, ymax),
+               interpolation='nearest',
+               cmap=matplotlib.cm.seismic)
+
+    # X = np.array(X)
+    # Y = np.array(Y)
+    # Z = np.matrix(Z)
+    #range_ = min(Z), max(Z)
+
+    #Z = matplotlib.cm.rainbow(map(lambda x:x/range_[1], Z))
+    #plot.scatter(X, Y, color=Z) # pcolormesh(X, Y, Z)
+
+
+
+    plt.tight_layout()
+    plt.savefig(os.path.basename(fi) + '.colormap.png', dpi=300)
+    plt.savefig(os.path.basename(fi) + '.colormap.svg', dpi=300)
+    plt.close()
+
+
+
+
+
+
 
 def binSpectra(fi, binfunc, binparams):
     # this function reads an mgf file
@@ -223,9 +285,10 @@ def main():
     # makePlots(sys.argv[1], sys.argv[2], 'maxms2intensity+pmass', maxMS2IntensityAndPrecMassBinFunc, binparams={'winsize': 200})
     # makePlots(sys.argv[1], sys.argv[2], 'maxms2intensity+pcharge', maxMS2IntensityAndChargeBinFunc, None)
 
-    getMassHistogram(sys.argv[1], binsize=50)
-    getMassHistogram(sys.argv[2], binsize=50)
-
+    #getMassHistogram(sys.argv[1], binsize=50)
+    #getMassHistogram(sys.argv[2], binsize=50)
+    plotHeatmap(sys.argv[1])
+    plotHeatmap(sys.argv[2])
 
     # uncomment to extract bin members
     # writeBinMembers(sys.argv[1], maxMS2IntensityBinFunc, None)
