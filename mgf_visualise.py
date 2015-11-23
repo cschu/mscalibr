@@ -49,6 +49,8 @@ def maxMS2IntensityAndChargeBinFunc(spectrum, params={}):
 def plotHeatmap(fi, nSpectra=4000, fragBinsize=10, precursorBinsize=5):
     binf = maxMS2IntensityBinFunc
 
+    # filter spectra so that at most 4000 spectra with log10(maxMS2Intensity) == 2 are used
+    # spectra are sorted by log10(maxMS2Intensity), precursor mass
     with mgf.read(fi) as reader:
         spectra = sorted([(spectrum['params']['pepmass'][0], spectrum['params']['title'], binf(spectrum)) for spectrum in reader],
                          key=lambda x:(x[2], x[0]))
@@ -57,20 +59,25 @@ def plotHeatmap(fi, nSpectra=4000, fragBinsize=10, precursorBinsize=5):
     for spectrum in spectra:
         print spectrum
 
+    # build dict spectrum-id => index (might have to be precursor mass)
     usedSpectra = dict([(spectrum[1], i) for i, spectrum in enumerate(spectra)])
 
+    # extract spectrum masses/intensities from file according to usedSpectra list
     grid_d = {}
     with mgf.read(fi) as reader:
         for spectrum in reader:
             if spectrum['params']['title'] in usedSpectra:
+                # find precursor bin (y-axis)
                 binPrecursor = usedSpectra[spectrum['params']['title']] // precursorBinsize
 
                 for fragMass, fragIntensity in it.izip(spectrum['m/z array'], spectrum['intensity array']):
+                    # find fragment mass bin (x-axis) for each fragment
                     binFrag = int(fragMass // fragBinsize)
 
                     # key = (binFrag, binPrecursor)
                     key = (binPrecursor, binFrag)
 
+                    # grid_d holds 2D bins (precursor mass, fragment mass)
                     if key not in grid_d:
                         grid_d[key] = []
                     grid_d[key].append(fragIntensity)
@@ -82,7 +89,7 @@ def plotHeatmap(fi, nSpectra=4000, fragBinsize=10, precursorBinsize=5):
     for key in sorted(grid_d):
         print key, grid_d[key]
 
-
+    # build colormesh grid - each cell is either 0.0 or the mean intensity
     grid = []
     for x in xrange(ncols):
         for y in xrange(nrows):
