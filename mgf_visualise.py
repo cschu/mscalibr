@@ -11,8 +11,11 @@ try:
 except:
     matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import seaborn as sns
+
 # from scipy.stats import norm
 from pyteomics import mgf
+
 
 
 # functions to determine "bins" for plot-generation
@@ -44,6 +47,75 @@ def maxMS2IntensityAndChargeBinFunc(spectrum, params={}):
     # binning by max MS2 intensity and precursor charge (is that spectrum charge or precursor charge?)
     return maxMS2IntensityBinFunc(spectrum), precChargeBinFunc(spectrum)
 
+"""
+Before I forget, let me write what I think you could do with Jan's data
+For each peptide plot density of M/Z and if possible plot 10 peptides of similar mass together.
+And plot 10 of such plots together (so you have batches of 100peptides together)
+Plot first 100/1000 and see what we get.
+"""
+
+def n_subplots(n):
+    if n == 1: return 1, 1
+    if n == 2: return 1, 2
+    if n == 3: return 1, 3
+    if n == 4: return 2, 2
+    if n == 5: return 2, 3
+    if n == 6: return 2, 3
+    if n == 7: return 3, 3
+    if n == 8: return 3, 3
+    if n == 9: return 3, 3
+    if n == 10: return 3, 4
+    if n == 11: return 3, 4
+    if n == 12: return 3, 4
+    if n == 13: return 4, 4
+    if n == 14: return 4, 4
+    if n == 15: return 4, 4
+    if n == 16: return 4, 4
+    return -1, 5
+
+
+def plotDensities(fi, precMassBinSize=100):
+
+
+    binf = maxMS2IntensityBinFunc
+    massBins = {}
+    spectrum_bin_map = {}
+    with mgf.read(fi) as reader:
+        spectra = sorted(((spectrum['params']['pepmass'][0], spectrum['params']['title'], binf(spectrum, params={'winsize': precMassBinSize})) for spectrum in reader), key=lambda x:(x[2], x[0]))
+        for i, spectrum in enumerate(spectra):
+            spectrum_bin_map[i] = spectrum[2]
+
+    grid = n_subplots(len(set(spectrum_bin_map.values())))
+    f, axes = plt.subplots(grid[0], grid[1], figsize=(16,16), sharey=True)
+    sns.despine(left=True)
+    sns.set_context("notebook", font_scale=1.5, rc={"lines.linewidth": 1.0})
+    pal = sns.color_palette("Reds", n_colors=101)
+
+    with mgf.read(fi) as reader:
+        for i, spectrum in enumerate(reader):
+            massBins[spectrum_bin_map[i]] = massBins.get(spectrum_bin_map[i], []) + [spectrum]
+
+    row, col = 0, 0
+    for mbin in sorted(massBins):
+        print row, col, mbin, len(massBins[mbin])
+        maxIntensity = max(max(spectrum['intensity array']) for spectrum in massBins[mbin])
+
+        spectra = sorted(((max(spectrum['intensity array']), spectrum['params']['pepmass'][0], i) for i, spectrum in enumerate(massBins[mbin])), key=lambda x:x[0])
+
+        for intensity, precMass, i in spectra:
+            dp = sns.distplot(massBins[mbin][i]['m/z array'] - precMass, hist=False, color=pal[int(intensity/maxIntensity * 100 + 0.5)], ax=axes[row,col])
+            axes[row, col].set_ylim(0, 0.004)
+        if col == grid[1] - 1:
+            row += 1
+            col = 0
+        else:
+            col += 1
+
+    plt.tight_layout()
+    plt.savefig("test.png", dpi=300)
+
+
+
 
 
 def plotHeatmap(fi, nSpectra=4000, fragBinsize=10, precursorBinsize=5):
@@ -64,15 +136,23 @@ def plotHeatmap(fi, nSpectra=4000, fragBinsize=10, precursorBinsize=5):
 
     # extract spectrum masses/intensities from file according to usedSpectra list
     grid_d = {}
+
+    X,Y = [], []
+
     with mgf.read(fi) as reader:
         for spectrum in reader:
             if spectrum['params']['title'] in usedSpectra:
                 # find precursor bin (y-axis)
                 binPrecursor = usedSpectra[spectrum['params']['title']] // precursorBinsize
 
+                maxIntensity, maxIntensityFM = 0, 0
                 for fragMass, fragIntensity in it.izip(spectrum['m/z array'], spectrum['intensity array']):
                     # find fragment mass bin (x-axis) for each fragment
                     binFrag = int(fragMass // fragBinsize)
+                    if fragIntensity > maxIntensity:
+                        maxIntensity = fragIntensity
+                        maxIntensityFM = binFrag
+                        maxIntensityBP = binPrecursor
 
                     # key = (binFrag, binPrecursor)
                     key = (binPrecursor, binFrag)
@@ -81,6 +161,26 @@ def plotHeatmap(fi, nSpectra=4000, fragBinsize=10, precursorBinsize=5):
                     if key not in grid_d:
                         grid_d[key] = []
                     grid_d[key].append(fragIntensity)
+                for i in xrange(int(maxIntensity + 0.5)):
+                    X.append(int(maxIntensityFM + 0.5))
+                    Y.append(int(maxIntensityBP + 0.5))
+
+
+
+
+    with sns.axes_style("white"):
+        # f, axes = plt.subplots(1, 1, figsize=(16,16), sharey=True)
+        #fig = plt.figure()
+        #sp = fig.add_subplot(1,1,1)
+        sns.despine(left=True)
+        sns.set_context("notebook", font_scale=1.5, rc={"lines.linewidth": 1.0})
+        pl = sns.jointplot(x=np.array(X), y=np.array(Y), kind="hex", color="k")
+        pl.savefig('hex.png', dpi=300)
+
+        #plt.tight_layout()
+        #plt.savefig("hex.png", dpi=300)
+        del X
+        del Y
 
     def mean(L):
         return sum(L) / len(L)
@@ -369,6 +469,7 @@ def main():
     #getMassHistogram(sys.argv[2], binsize=50)
     # plotHeatmap(sys.argv[1])
     plotHeatmap(sys.argv[2])
+    #plotDensities(sys.argv[1])
 
     # uncomment to extract bin members
     # writeBinMembers(sys.argv[1], maxMS2IntensityBinFunc, None)
