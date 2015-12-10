@@ -174,7 +174,8 @@ def plotHeatmap(fi, nSpectra=4000, fragBinsize=10, precursorBinsize=5):
         #sp = fig.add_subplot(1,1,1)
         sns.despine(left=True)
         sns.set_context("notebook", font_scale=1.5, rc={"lines.linewidth": 1.0})
-        pl = sns.jointplot(x=np.array(X), y=np.array(Y), kind="hex", color="k")
+        pal = sns.color_palette("Reds", n_colors=101)
+        pl = sns.jointplot(x=np.array(X), y=np.array(Y), kind="kde", color="g")
         pl.savefig('hex.png', dpi=300)
 
         #plt.tight_layout()
